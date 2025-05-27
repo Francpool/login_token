@@ -4,14 +4,28 @@
 <head>
   <title>Dashboard</title>
   <style>
+    /* Contenedor de cuadrícula (grid) para las tarjetas */
+    #userInfo {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
+      padding: 20px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
     /* Estilos para las tarjetas de usuario */
     .user-card {
       border: 1px solid #ddd;
       border-radius: 8px;
       padding: 15px;
-      margin-bottom: 15px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       background-color: #f9f9f9;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      transition: transform 0.3s;
+    }
+
+    .user-card:hover {
+      transform: scale(1.02);
     }
 
     .user-card h3 {
@@ -33,6 +47,11 @@
       border-radius: 5px;
       cursor: pointer;
       font-size: 1rem;
+      margin: 20px 0;
+      display: block;
+      max-width: 150px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     #logoutButton:hover {
@@ -93,7 +112,7 @@
           <h3>Your Information</h3>
           <p><strong>Name:</strong> ${user.firstname} ${user.lastname}</p>
           <p><strong>Phone:</strong> ${user.phone}</p>
-          <p><strong>Email:</strong> ${user.email || "Not provided"}</p>
+         
         </div>
       `;
       document.getElementById("userInfo").innerHTML = userInfo;
@@ -106,7 +125,7 @@
       });
 
       const users = await resAll.json();
-      let userInfo = "<h2>All Users:</h2>";
+      let userInfo = "";
       users.forEach(u => {
         userInfo += `
           <div class="user-card">
