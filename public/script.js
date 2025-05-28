@@ -1,17 +1,41 @@
+// Cambiar entre formularios
+document.getElementById('showRegister').addEventListener('click', function(e) {
+  e.preventDefault();
+  document.getElementById('loginContainer').style.display = 'none';
+  document.getElementById('registerContainer').style.display = 'block';
+});
+
+document.getElementById('showLogin').addEventListener('click', function(e) {
+  e.preventDefault();
+  document.getElementById('registerContainer').style.display = 'none';
+  document.getElementById('loginContainer').style.display = 'block';
+});
+
 // Manejador de registro
 document.getElementById("registerForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(e.target);
-  const data = Object.fromEntries(formData.entries());
+  const data = {
+    email: formData.get("email"),
+    password: formData.get("password"),
+    firstname: formData.get("firstname"),
+    lastname: formData.get("lastname"),
+    birthdate: formData.get("birthdate"),
 
-  const res = await fetch("/api/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  };
 
-  const result = await res.json();
-  alert(result.message || "Registered");
+  try {
+    const res = await fetch("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    const result = await res.json();
+    alert(result.message || "Registered");
+  } catch (err) {
+    alert("Network error, please try again later.");
+  }
 });
 
 // Manejador de inicio de sesión
@@ -20,24 +44,29 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
   const formData = new FormData(e.target);
   const data = Object.fromEntries(formData.entries());
 
-  const res = await fetch("/api/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
 
-  const result = await res.json();
-  
-  if (res.ok) {
-    console.log("TOKEN:", result.token); // ✅ Imprime el token
-    // Guardar el token y el nombre del usuario en Local Storage
-    localStorage.setItem("token", result.token);
-    localStorage.setItem("username", result.user.firstname);
+    const result = await res.json();
 
-    alert(`Welcome, ${result.user.firstname}`);
-    window.location.href = "/dashboard.html"; // ✅ Redirigir a dashboard.html
-  } else {
-    alert(result.message || "Login failed");
+    if (res.ok) {
+      console.log("TOKEN:", result.token);
+      // Save token and email/firstname in Local Storage
+      localStorage.setItem("token", result.token);
+      localStorage.setItem("email", result.user.email);
+      localStorage.setItem("firstname", result.user.firstname);
+
+      alert(`Welcome, ${result.user.firstname}`);
+      window.location.href = "/dashboard.html";
+    } else {
+      alert(result.message || "Login failed");
+    }
+  } catch (err) {
+    alert("Network error, please try again later.");
   }
 });
 
@@ -45,12 +74,13 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
 document.addEventListener("DOMContentLoaded", () => {
   const isDashboard = window.location.pathname.includes("dashboard.html");
   if (isDashboard) {
-    const username = localStorage.getItem("username");
-    if (username) {
-      document.getElementById("welcomeMessage").textContent = `Welcome, ${username}`;
+    const firstname = localStorage.getItem("firstname");
+    const email = localStorage.getItem("email");
+    if (firstname && email) {
+      document.getElementById("welcomeMessage").textContent = `Welcome, ${firstname} (${email})`;
     } else {
       alert("User not logged in");
-      window.location.href = "/index.html"; // Redirigir al login si no está autenticado
+      window.location.href = "/index.html";
     }
   }
 });

@@ -1,9 +1,8 @@
-<!-- dashboard.html -->
 <!DOCTYPE html>
 <html>
 <head>
   <title>Dashboard</title>
-  <style>
+   <style>
     /* Contenedor de cuadrícula (grid) para las tarjetas */
     #userInfo {
       display: grid;
@@ -13,7 +12,7 @@
       max-width: 1000px;
       margin: 0 auto;
     }
-
+  
     /* Estilos para las tarjetas de usuario */
     .user-card {
       border: 1px solid #ddd;
@@ -67,18 +66,20 @@
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
       const token = localStorage.getItem("token");
-      const username = localStorage.getItem("username");
+      const firstname = localStorage.getItem("firstname");
+      const email = localStorage.getItem("email");
 
-      if (!token || !username) {
+      if (!token || !firstname || !email) {
         alert("User not logged in");
         window.location.href = "/index.html";
         return;
       }
 
-      console.log("TOKEN almacenado:", token);
+      // Usa backticks aquí
+      document.getElementById("welcomeMessage").textContent = `Welcome, ${firstname} (${email})`;
 
       try {
-        // Obtener la información del usuario autenticado
+        // Usa backticks en el Authorization header
         const res = await fetch("/api/users/me", {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -88,9 +89,7 @@
         }
 
         const user = await res.json();
-        document.getElementById("welcomeMessage").textContent = `Welcome, ${user.firstname}`;
 
-        // Verificar si es administrador
         if (user.isAdmin) {
           displayAllUsers(token);
         } else {
@@ -100,25 +99,25 @@
         console.error("Error:", err.message);
         alert("Failed to load user information. Please log in again.");
         localStorage.removeItem("token");
-        localStorage.removeItem("username");
+        localStorage.removeItem("firstname");
+        localStorage.removeItem("email");
         window.location.href = "/index.html";
       }
     });
 
-    // ✅ Función para mostrar la información de un usuario normal
     function displayUserCard(user) {
+      // Usa backticks aquí
       const userInfo = `
         <div class="user-card">
           <h3>Your Information</h3>
           <p><strong>Name:</strong> ${user.firstname} ${user.lastname}</p>
-          <p><strong>Phone:</strong> ${user.phone}</p>
-         
+          <p><strong>Phone:</strong> ${user.phone || "Not provided"}</p>
+          <p><strong>Email:</strong> ${user.email}</p>
         </div>
       `;
       document.getElementById("userInfo").innerHTML = userInfo;
     }
 
-    // ✅ Función para mostrar a todos los usuarios (admin)
     async function displayAllUsers(token) {
       const resAll = await fetch("/api/users/all", {
         headers: { Authorization: `Bearer ${token}` }
@@ -130,7 +129,7 @@
         userInfo += `
           <div class="user-card">
             <h3>${u.firstname} ${u.lastname}</h3>
-            <p><strong>Phone:</strong> ${u.phone}</p>
+            <p><strong>Phone:</strong> ${u.phone || "Not provided"}</p>
             <p><strong>Email:</strong> ${u.email || "Not provided"}</p>
           </div>
         `;
@@ -138,10 +137,10 @@
       document.getElementById("userInfo").innerHTML = userInfo;
     }
 
-    // ✅ Manejador del botón Logout
     document.getElementById("logoutButton").addEventListener("click", () => {
       localStorage.removeItem("token");
-      localStorage.removeItem("username");
+      localStorage.removeItem("firstname");
+      localStorage.removeItem("email");
       alert("Logged out successfully");
       window.location.href = "/index.html";
     });

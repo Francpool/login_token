@@ -5,27 +5,47 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { jwtSecret } = require("../config/config");
 
+// REGISTER
 router.post("/register", async (req, res) => {
   try {
-    const exists = await User.findOne({ username: req.body.username });
+    console.log('Register received:', req.body); // 👈 Esto imprime el body recibido
+    const exists = await User.findOne({ email: req.body.email });
     if (exists) {
-      return res.status(400).json({ message: "Username already exists" });
+      return res.status(400).json({ message: "Email already in use" });
     }
 
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
-    const newUser = new User({ ...req.body, password: hashedPassword });
+
+    // Construye el nuevo usuario solo con los campos permitidos
+    const newUser = new User({
+      email: req.body.email,
+      password: hashedPassword,
+      firstname: req.body.firstname,
+      lastname: req.body.lastname,
+      birthdate: new Date(req.body.birthdate),
+      // isAdmin y favouriteFlats quedan opcionales
+    });
+
     await newUser.save();
     res.status(201).json({ message: "User registered successfully" });
   } catch (err) {
+    // 👇 AGREGA ESTE CONSOLE.ERROR DENTRO DEL CATCH
+    console.error("Register error:", err); // Esto imprime el error real en tu consola de Node
+
+    if (err.code === 11000 && err.keyPattern && err.keyPattern.email) {
+      return res.status(400).json({ message: "Email already in use" });
+    }
     res.status(500).json({ error: err.message });
   }
 });
 
-// Login del usuario
+
+// LOGIN
 router.post("/login", async (req, res) => {
   try {
-    const { username, password } = req.body;
-    const user = await User.findOne({ username });
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
@@ -38,10 +58,9 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign(
       {
         id: user._id,
-        username: user.username,
+        email: user.email,
         firstname: user.firstname,
         lastname: user.lastname,
-        phone: user.phone,
         isAdmin: user.isAdmin
       },
       jwtSecret,
@@ -53,8 +72,8 @@ router.post("/login", async (req, res) => {
       user: {
         firstname: user.firstname,
         lastname: user.lastname,
-        phone: user.phone,
-        isAdmin: user.isAdmin
+        isAdmin: user.isAdmin,
+        email: user.email
       }
     });
   } catch (err) {
@@ -65,7 +84,7 @@ router.post("/login", async (req, res) => {
 const { verifyToken } = require("../middleware/auth");
 
 router.get("/profile", verifyToken, (req, res) => {
-  res.json({ message: "Ruta protegida", user: req.user });
+  res.json({ message: "Protected route", user: req.user });
 });
 
 module.exports = router;
