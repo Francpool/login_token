@@ -35,4 +35,54 @@ router.get("/all", verifyToken, async (req, res) => {
   }
 });
 
+// PUT /api/users/:id - Editar usuario (solo admin)
+router.put("/:id", verifyToken, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { id } = req.params;
+    const { email, firstname, lastname, birthdate, isAdmin } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      id,
+      {
+        email,
+        firstname,
+        lastname,
+        birthdate: new Date(birthdate),
+        isAdmin: isAdmin === true || isAdmin === "true"
+      },
+      { new: true, runValidators: true }
+    );
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ message: "User updated successfully", user });
+  } catch (err) {
+    if (err.code === 11000 && err.keyPattern && err.keyPattern.email) {
+      return res.status(400).json({ message: "Email already in use" });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/users/:id - Eliminar usuario (solo admin)
+router.delete("/:id", verifyToken, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    const { id } = req.params;
+    const user = await User.findByIdAndDelete(id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 module.exports = router;

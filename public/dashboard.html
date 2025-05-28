@@ -2,8 +2,7 @@
 <html>
 <head>
   <title>Dashboard</title>
-   <style>
-    /* Contenedor de cuadrícula (grid) para las tarjetas */
+  <style>
     #userInfo {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -12,8 +11,6 @@
       max-width: 1000px;
       margin: 0 auto;
     }
-  
-    /* Estilos para las tarjetas de usuario */
     .user-card {
       border: 1px solid #ddd;
       border-radius: 8px;
@@ -21,22 +18,22 @@
       background-color: #f9f9f9;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       transition: transform 0.3s;
+      position: relative;
     }
-
-    .user-card:hover {
-      transform: scale(1.02);
-    }
-
-    .user-card h3 {
-      margin: 0;
-      font-size: 1.2rem;
-    }
-
-    .user-card p {
-      margin: 4px 0;
+    .user-card h3 { margin: 0; font-size: 1.2rem; }
+    .user-card p { margin: 4px 0; font-size: 0.9rem; color: #555; }
+    .user-card button {
+      margin: 8px 5px 0 0;
+      padding: 6px 14px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
       font-size: 0.9rem;
-      color: #555;
     }
+    .edit-btn { background-color: #007bff; color: #fff; }
+    .edit-btn:hover { background-color: #0056b3; }
+    .delete-btn { background-color: #dc3545; color: #fff; }
+    .delete-btn:hover { background-color: #c82333; }
 
     #logoutButton {
       background-color: #dc3545;
@@ -52,10 +49,27 @@
       margin-left: auto;
       margin-right: auto;
     }
+    #logoutButton:hover { background-color: #c82333; }
 
-    #logoutButton:hover {
-      background-color: #c82333;
+    /* Modal Styles */
+    .modal {
+      display: none; 
+      position: fixed; 
+      z-index: 999;
+      left: 0; top: 0; width: 100vw; height: 100vh;
+      overflow: auto; background: rgba(0,0,0,0.3);
+      justify-content: center; align-items: center;
     }
+    .modal-content {
+      background: #fff; border-radius: 8px; padding: 20px; min-width: 300px;
+      max-width: 95vw; position: relative;
+    }
+    .close-modal {
+      position: absolute; top: 8px; right: 16px; font-size: 1.2rem; cursor: pointer; color: #333;
+    }
+    .modal label { display: block; margin: 10px 0 2px; }
+    .modal input { width: 100%; padding: 5px; margin-bottom: 10px; }
+    .modal button { margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -63,7 +77,42 @@
   <div id="userInfo"></div>
   <button id="logoutButton">Logout</button>
 
+  <!-- Modal for Edit -->
+  <div class="modal" id="editModal">
+    <div class="modal-content">
+      <span class="close-modal" id="closeEditModal">&times;</span>
+      <h2>Edit User</h2>
+      <form id="editUserForm">
+        <input type="hidden" id="editUserId">
+        <label>Email: <input type="email" id="editEmail" required></label>
+        <label>First Name: <input type="text" id="editFirstname" required></label>
+        <label>Last Name: <input type="text" id="editLastname" required></label>
+        <label>Birth Date: <input type="date" id="editBirthdate" required></label>
+        <label>Is Admin: 
+          <select id="editIsAdmin">
+            <option value="false">No</option>
+            <option value="true">Yes</option>
+          </select>
+        </label>
+        <button type="submit" class="edit-btn">Save</button>
+      </form>
+    </div>
+  </div>
+  <!-- Modal for Delete -->
+  <div class="modal" id="deleteModal">
+    <div class="modal-content">
+      <span class="close-modal" id="closeDeleteModal">&times;</span>
+      <h2>Delete User</h2>
+      <p>Are you sure you want to delete this user?</p>
+      <button id="confirmDeleteBtn" class="delete-btn">Yes, Delete</button>
+      <button id="cancelDeleteBtn" class="edit-btn">Cancel</button>
+    </div>
+  </div>
+
   <script>
+    let usersCache = [];
+    let deleteUserId = null;
+
     document.addEventListener("DOMContentLoaded", async () => {
       const token = localStorage.getItem("token");
       const firstname = localStorage.getItem("firstname");
@@ -75,19 +124,14 @@
         return;
       }
 
-      // Usa backticks aquí
       document.getElementById("welcomeMessage").textContent = `Welcome, ${firstname} (${email})`;
 
       try {
-        // Usa backticks en el Authorization header
-        const res = await fetch("/api/users/me", {
+        const res = await fetch("/users/me", {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        if (!res.ok) {
-          throw new Error("Failed to fetch user information");
-        }
-
+        if (!res.ok) throw new Error("Failed to fetch user information");
         const user = await res.json();
 
         if (user.isAdmin) {
@@ -105,38 +149,113 @@
       }
     });
 
-    function displayUserCard(user) {
-      // Usa backticks aquí
-      const userInfo = `
-        <div class="user-card">
-          <h3>Your Information</h3>
-          <p><strong>Name:</strong> ${user.firstname} ${user.lastname}</p>
-          <p><strong>Phone:</strong> ${user.phone || "Not provided"}</p>
-          <p><strong>Email:</strong> ${user.email}</p>
-        </div>
-      `;
-      document.getElementById("userInfo").innerHTML = userInfo;
-    }
-
+    // Show all users (admin)
     async function displayAllUsers(token) {
-      const resAll = await fetch("/api/users/all", {
+      const resAll = await fetch("/users/all", {
         headers: { Authorization: `Bearer ${token}` }
       });
+      usersCache = await resAll.json(); // Keep for edit/delete
 
-      const users = await resAll.json();
       let userInfo = "";
-      users.forEach(u => {
+      usersCache.forEach(u => {
         userInfo += `
-          <div class="user-card">
+          <div class="user-card" data-user-id="${u._id}">
             <h3>${u.firstname} ${u.lastname}</h3>
-            <p><strong>Phone:</strong> ${u.phone || "Not provided"}</p>
+            <p><strong>ID:</strong> ${u._id}</p>
             <p><strong>Email:</strong> ${u.email || "Not provided"}</p>
+            <p><strong>First Name:</strong> ${u.firstname}</p>
+            <p><strong>Last Name:</strong> ${u.lastname}</p>
+            <p><strong>Birth Date:</strong> ${u.birthdate ? new Date(u.birthdate).toLocaleDateString() : "Not provided"}</p>
+            <p><strong>Is Admin:</strong> ${u.isAdmin ? "Yes" : "No"}</p>
+            <button class="edit-btn" onclick="openEditModal('${u._id}')">Edit</button>
+            <button class="delete-btn" onclick="openDeleteModal('${u._id}')">Delete</button>
           </div>
         `;
       });
       document.getElementById("userInfo").innerHTML = userInfo;
     }
 
+    // Show user info (user)
+    function displayUserCard(user) {
+      const userInfo = `
+        <div class="user-card">
+          <h3>Your Information</h3>
+          <p><strong>ID:</strong> ${user._id}</p>
+          <p><strong>Email:</strong> ${user.email}</p>
+          <p><strong>First Name:</strong> ${user.firstname}</p>
+          <p><strong>Last Name:</strong> ${user.lastname}</p>
+          <p><strong>Birth Date:</strong> ${user.birthdate ? new Date(user.birthdate).toLocaleDateString() : "Not provided"}</p>
+          <p><strong>Is Admin:</strong> ${user.isAdmin ? "Yes" : "No"}</p>
+        </div>
+      `;
+      document.getElementById("userInfo").innerHTML = userInfo;
+    }
+
+    // Edit Modal logic
+    window.openEditModal = function(userId) {
+      const user = usersCache.find(u => u._id === userId);
+      if (!user) return;
+      document.getElementById('editUserId').value = user._id;
+      document.getElementById('editEmail').value = user.email;
+      document.getElementById('editFirstname').value = user.firstname;
+      document.getElementById('editLastname').value = user.lastname;
+      document.getElementById('editBirthdate').value = user.birthdate ? new Date(user.birthdate).toISOString().split('T')[0] : '';
+      document.getElementById('editIsAdmin').value = user.isAdmin ? "true" : "false";
+      document.getElementById('editModal').style.display = 'flex';
+    };
+    document.getElementById('closeEditModal').onclick = () => document.getElementById('editModal').style.display = 'none';
+
+    document.getElementById('editUserForm').onsubmit = async function(e) {
+      e.preventDefault();
+      const token = localStorage.getItem("token");
+      const userId = document.getElementById('editUserId').value;
+      const data = {
+        email: document.getElementById('editEmail').value,
+        firstname: document.getElementById('editFirstname').value,
+        lastname: document.getElementById('editLastname').value,
+        birthdate: document.getElementById('editBirthdate').value,
+        isAdmin: document.getElementById('editIsAdmin').value === "true"
+      };
+      const res = await fetch(`/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        document.getElementById('editModal').style.display = 'none';
+        displayAllUsers(token);
+        alert("User updated successfully");
+      } else {
+        alert("Failed to update user");
+      }
+    };
+
+    // Delete Modal logic
+    window.openDeleteModal = function(userId) {
+      deleteUserId = userId;
+      document.getElementById('deleteModal').style.display = 'flex';
+    };
+    document.getElementById('closeDeleteModal').onclick = () => document.getElementById('deleteModal').style.display = 'none';
+    document.getElementById('cancelDeleteBtn').onclick = () => document.getElementById('deleteModal').style.display = 'none';
+    document.getElementById('confirmDeleteBtn').onclick = async function() {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/users/${deleteUserId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        document.getElementById('deleteModal').style.display = 'none';
+        displayAllUsers(token);
+        alert("User deleted successfully");
+      } else {
+        alert("Failed to delete user");
+      }
+    };
+
+    // Logout
     document.getElementById("logoutButton").addEventListener("click", () => {
       localStorage.removeItem("token");
       localStorage.removeItem("firstname");

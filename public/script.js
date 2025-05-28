@@ -61,7 +61,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
       localStorage.setItem("firstname", result.user.firstname);
 
       alert(`Welcome, ${result.user.firstname}`);
-      window.location.href = "/dashboard.html";
+      window.location.href = "/dashboardFlats.html";
     } else {
       alert(result.message || "Login failed");
     }

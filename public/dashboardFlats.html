@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Flats Dashboard</title>
+  <style>
+    body { font-family: sans-serif; }
+    #flatInfo {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 15px;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .flat-card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      background: #f9f9f9;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: transform 0.3s;
+      position: relative;
+    }
+    .flat-card:hover { transform: scale(1.01);}
+    .flat-card h3 { margin: 0 0 5px 0;}
+    .flat-card p { margin: 4px 0; font-size: 0.92rem; color: #555;}
+    .flat-card .actions button {
+      margin-right: 6px;
+      margin-top: 8px;
+      padding: 5px 12px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.92rem;
+    }
+    .edit-btn { background: #007bff; color: #fff;}
+    .edit-btn:hover { background: #0056b3;}
+    .delete-btn { background: #dc3545; color: #fff;}
+    .delete-btn:hover { background: #c82333;}
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 999;
+      left: 0; top: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.3);
+      justify-content: center; align-items: center;
+    }
+    .modal-content {
+      background: #fff; border-radius: 8px; padding: 18px 25px; min-width: 320px; max-width: 95vw;
+      position: relative;
+    }
+    .close-modal {
+      position: absolute; top: 8px; right: 14px; font-size: 1.2rem; cursor: pointer; color: #333;
+    }
+    .modal label { display: block; margin: 12px 0 2px;}
+    .modal input, .modal select {
+      width: 100%; padding: 5px; margin-bottom: 10px;
+    }
+    .modal button { margin-top: 8px;}
+    /* Create Flat Form */
+    #createFlatForm { margin: 30px auto 20px auto; padding: 15px 22px; background: #f4f7fc; border-radius: 8px; max-width: 400px;}
+    #createFlatForm label { font-weight: 500;}
+    #logoutButton {
+      background: #dc3545; color: #fff; border: none; padding: 9px 17px; border-radius: 5px; cursor: pointer; font-size: 1rem; margin: 25px 0 0 0; float:right;
+    }
+    #logoutButton:hover { background: #c82333;}
+    h1 { text-align:center;}
+  </style>
+</head>
+<body>
+  <h1>Flats Dashboard</h1>
+  <button id="logoutButton">Logout</button>
+  <form id="createFlatForm">
+    <h3>Add New Flat</h3>
+    <label>City: <input type="text" name="city" required></label>
+    <label>Street Name: <input type="text" name="streetName" required></label>
+    <label>Street Number: <input type="text" name="streetNumber" required></label>
+    <label>Area Size (m²): <input type="number" name="areaSize" min="1" required></label>
+    <label>Has AC: 
+      <select name="hasAC">
+        <option value="false">No</option>
+        <option value="true">Yes</option>
+      </select>
+    </label>
+    <label>Year Built: <input type="number" name="yearBuilt" min="1800" max="2100" required></label>
+    <label>Rent Price: <input type="number" name="rentPrice" min="0" required></label>
+    <label>Date Available: <input type="date" name="dateAvailable" required></label>
+    <button type="submit">Create Flat</button>
+  </form>
+
+  <div id="flatInfo"></div>
+
+  <!-- Edit Flat Modal -->
+  <div class="modal" id="editFlatModal">
+    <div class="modal-content">
+      <span class="close-modal" id="closeEditFlatModal">&times;</span>
+      <h2>Edit Flat</h2>
+      <form id="editFlatForm">
+        <input type="hidden" name="id" id="editFlatId">
+        <label>City: <input type="text" name="city" id="editCity" required></label>
+        <label>Street Name: <input type="text" name="streetName" id="editStreetName" required></label>
+        <label>Street Number: <input type="text" name="streetNumber" id="editStreetNumber" required></label>
+        <label>Area Size (m²): <input type="number" name="areaSize" id="editAreaSize" required></label>
+        <label>Has AC: 
+          <select name="hasAC" id="editHasAC">
+            <option value="false">No</option>
+            <option value="true">Yes</option>
+          </select>
+        </label>
+        <label>Year Built: <input type="number" name="yearBuilt" id="editYearBuilt" required></label>
+        <label>Rent Price: <input type="number" name="rentPrice" id="editRentPrice" required></label>
+        <label>Date Available: <input type="date" name="dateAvailable" id="editDateAvailable" required></label>
+        <button type="submit">Update Flat</button>
+      </form>
+    </div>
+  </div>
+  <!-- Delete Modal -->
+  <div class="modal" id="deleteFlatModal">
+    <div class="modal-content">
+      <span class="close-modal" id="closeDeleteFlatModal">&times;</span>
+      <h2>Delete Flat</h2>
+      <p>Are you sure you want to delete this flat?</p>
+      <button id="confirmDeleteFlatBtn" class="delete-btn">Yes, Delete</button>
+      <button id="cancelDeleteFlatBtn" class="edit-btn">Cancel</button>
+    </div>
+  </div>
+  <script>
+    let flatsCache = [];
+    let userId = null;
+    let deleteFlatId = null;
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("User not logged in");
+        window.location.href = "/index.html";
+        return;
+      }
+      // Obtener ID de usuario autenticado para mostrar acciones solo en sus flats
+      const resMe = await fetch("/users/me", { headers: { Authorization: `Bearer ${token}` }});
+      if (!resMe.ok) {
+        alert("User not logged in");
+        window.location.href = "/index.html";
+        return;
+      }
+      const user = await resMe.json();
+      userId = user._id || user.id; // según cómo mandes en backend
+
+      // Cargar flats
+      await loadAllFlats();
+    });
+
+    async function loadAllFlats() {
+      const res = await fetch("/flats");
+      flatsCache = await res.json();
+      displayFlats();
+    }
+
+    function displayFlats() {
+      const container = document.getElementById("flatInfo");
+      let html = "";
+      flatsCache.forEach(flat => {
+        html += `
+          <div class="flat-card">
+            <h3>${flat.city}, ${flat.streetName} ${flat.streetNumber}</h3>
+            <p><strong>ID:</strong> ${flat._id}</p>
+            <p><strong>Area:</strong> ${flat.areaSize} m²</p>
+            <p><strong>AC:</strong> ${flat.hasAC ? "Yes" : "No"}</p>
+            <p><strong>Year Built:</strong> ${flat.yearBuilt}</p>
+            <p><strong>Rent Price:</strong> $${flat.rentPrice}</p>
+            <p><strong>Date Available:</strong> ${flat.dateAvailable ? new Date(flat.dateAvailable).toLocaleDateString() : "N/A"}</p>
+            <p><strong>Owner:</strong> ${flat.owner?.firstname || ""} ${flat.owner?.lastname || ""} (${flat.owner?.email || flat.owner})</p>
+            <p><strong>Created:</strong> ${new Date(flat.createdAt).toLocaleString()}</p>
+            <p><strong>Updated:</strong> ${new Date(flat.updatedAt).toLocaleString()}</p>
+            <div class="actions">
+              ${flat.owner && (flat.owner._id || flat.owner) == userId ? `
+                <button class="edit-btn" onclick="openEditFlatModal('${flat._id}')">Edit</button>
+                <button class="delete-btn" onclick="openDeleteFlatModal('${flat._id}')">Delete</button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    // Crear Flat
+    document.getElementById("createFlatForm").addEventListener("submit", async function(e) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {
+        city: formData.get("city"),
+        streetName: formData.get("streetName"),
+        streetNumber: formData.get("streetNumber"),
+        areaSize: Number(formData.get("areaSize")),
+        hasAC: formData.get("hasAC") === "true",
+        yearBuilt: Number(formData.get("yearBuilt")),
+        rentPrice: Number(formData.get("rentPrice")),
+        dateAvailable: formData.get("dateAvailable")
+      };
+      const token = localStorage.getItem("token");
+      const res = await fetch("/flats", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        alert("Flat created!");
+        e.target.reset();
+        await loadAllFlats();
+      } else {
+        const result = await res.json();
+        alert(result.error || "Failed to create flat");
+      }
+    });
+
+    // Editar Flat - Modal
+    window.openEditFlatModal = function(flatId) {
+      const flat = flatsCache.find(f => f._id === flatId);
+      if (!flat) return;
+      document.getElementById("editFlatId").value = flat._id;
+      document.getElementById("editCity").value = flat.city;
+      document.getElementById("editStreetName").value = flat.streetName;
+      document.getElementById("editStreetNumber").value = flat.streetNumber;
+      document.getElementById("editAreaSize").value = flat.areaSize;
+      document.getElementById("editHasAC").value = flat.hasAC ? "true" : "false";
+      document.getElementById("editYearBuilt").value = flat.yearBuilt;
+      document.getElementById("editRentPrice").value = flat.rentPrice;
+      document.getElementById("editDateAvailable").value = flat.dateAvailable ? flat.dateAvailable.split("T")[0] : "";
+      document.getElementById("editFlatModal").style.display = "flex";
+    };
+    document.getElementById("closeEditFlatModal").onclick = () => document.getElementById("editFlatModal").style.display = "none";
+
+    document.getElementById("editFlatForm").addEventListener("submit", async function(e) {
+      e.preventDefault();
+      const id = document.getElementById("editFlatId").value;
+      const data = {
+        city: document.getElementById("editCity").value,
+        streetName: document.getElementById("editStreetName").value,
+        streetNumber: document.getElementById("editStreetNumber").value,
+        areaSize: Number(document.getElementById("editAreaSize").value),
+        hasAC: document.getElementById("editHasAC").value === "true",
+        yearBuilt: Number(document.getElementById("editYearBuilt").value),
+        rentPrice: Number(document.getElementById("editRentPrice").value),
+        dateAvailable: document.getElementById("editDateAvailable").value
+      };
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/flats/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        alert("Flat updated!");
+        document.getElementById("editFlatModal").style.display = "none";
+        await loadAllFlats();
+      } else {
+        const result = await res.json();
+        alert(result.error || "Failed to update flat");
+      }
+    });
+
+    // Borrar Flat - Modal
+    window.openDeleteFlatModal = function(flatId) {
+      deleteFlatId = flatId;
+      document.getElementById('deleteFlatModal').style.display = 'flex';
+    };
+    document.getElementById('closeDeleteFlatModal').onclick = () => document.getElementById('deleteFlatModal').style.display = 'none';
+    document.getElementById('cancelDeleteFlatBtn').onclick = () => document.getElementById('deleteFlatModal').style.display = 'none';
+    document.getElementById('confirmDeleteFlatBtn').onclick = async function() {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/flats/${deleteFlatId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert("Flat deleted!");
+        document.getElementById('deleteFlatModal').style.display = 'none';
+        await loadAllFlats();
+      } else {
+        const result = await res.json();
+        alert(result.error || "Failed to delete flat");
+      }
+    };
+
+    // Logout
+    document.getElementById("logoutButton").onclick = function() {
+      localStorage.clear();
+      window.location.href = "/index.html";
+    };
+  </script>
+</body>
+</html>
