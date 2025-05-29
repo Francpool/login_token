@@ -5,21 +5,28 @@ const User = require("../models/User");
 const { verifyToken } = require("../middleware/auth");
 
 // Ruta para que el usuario vea su propia información
+// routes/userRoutes.js
+
 router.get("/me", verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    // ¡Devuelve todos los campos!
     res.json({
+      _id: user._id,
+      email: user.email,
       firstname: user.firstname,
       lastname: user.lastname,
-      phone: user.phone,
-      isAdmin: user.isAdmin
+      birthdate: user.birthdate,
+      isAdmin: user.isAdmin,
+      // otros campos si quieres...
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // Ruta para que el administrador vea a todos los usuarios
 router.get("/all", verifyToken, async (req, res) => {

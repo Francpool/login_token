@@ -3,7 +3,7 @@
 <head>
   <title>Dashboard</title>
   <style>
-    #userInfo {
+      #userInfo, #flatInfo {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
       gap: 15px;
@@ -75,6 +75,9 @@
 <body>
   <h1 id="welcomeMessage">Welcome, User</h1>
   <div id="userInfo"></div>
+   <h2>Your Flats</h2>
+  <div id="flatInfo"></div>
+
   <button id="logoutButton">Logout</button>
 
   <!-- Modal for Edit -->
@@ -108,80 +111,205 @@
       <button id="cancelDeleteBtn" class="edit-btn">Cancel</button>
     </div>
   </div>
+   <!-- Modal Editar Flat -->
+  <div class="modal" id="editFlatModal">
+    <div class="modal-content">
+      <span class="close-modal" id="closeEditFlatModal">&times;</span>
+      <h2>Edit Flat</h2>
+      <form id="editFlatForm">
+        <input type="hidden" name="id" id="editFlatId">
+        <label>City: <input type="text" name="city" id="editCity" required></label>
+        <label>Street Name: <input type="text" name="streetName" id="editStreetName" required></label>
+        <label>Street Number: <input type="text" name="streetNumber" id="editStreetNumber" required></label>
+        <label>Area Size (m²): <input type="number" name="areaSize" id="editAreaSize" required></label>
+        <label>Has AC: 
+          <select name="hasAC" id="editHasAC">
+            <option value="false">No</option>
+            <option value="true">Yes</option>
+          </select>
+        </label>
+        <label>Year Built: <input type="number" name="yearBuilt" id="editYearBuilt" required></label>
+        <label>Rent Price: <input type="number" name="rentPrice" id="editRentPrice" required></label>
+        <label>Date Available: <input type="date" name="dateAvailable" id="editDateAvailable" required></label>
+        <button type="submit" class="edit-btn">Save</button>
+      </form>
+    </div>
+  </div>
+  <!-- Modal Delete Flat -->
+  <div class="modal" id="deleteFlatModal">
+    <div class="modal-content">
+      <span class="close-modal" id="closeDeleteFlatModal">&times;</span>
+      <h2>Delete Flat</h2>
+      <p>Are you sure you want to delete this flat?</p>
+      <button id="confirmDeleteFlatBtn" class="delete-btn">Yes, Delete</button>
+      <button id="cancelDeleteFlatBtn" class="edit-btn">Cancel</button>
+    </div>
+  </div>
 
   <script>
-    let usersCache = [];
-    let deleteUserId = null;
+    let flatsCache = [];
+    let user = null;
+    let deleteFlatId = null;
 
-    document.addEventListener("DOMContentLoaded", async () => {
-      const token = localStorage.getItem("token");
-      const firstname = localStorage.getItem("firstname");
-      const email = localStorage.getItem("email");
+document.addEventListener("DOMContentLoaded", async () => {
+  const token = localStorage.getItem("token");
+  const firstname = localStorage.getItem("firstname");
+  const email = localStorage.getItem("email");
 
-      if (!token || !firstname || !email) {
-        alert("User not logged in");
-        window.location.href = "/index.html";
-        return;
-      }
+  if (!token || !firstname || !email) {
+    alert("User not logged in");
+    window.location.href = "/index.html";
+    return;
+  }
 
-      document.getElementById("welcomeMessage").textContent = `Welcome, ${firstname} (${email})`;
+  document.getElementById("welcomeMessage").textContent = `Welcome, ${firstname} (${email})`;
 
-      try {
-        const res = await fetch("/users/me", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+  // Obtén info usuario
+  const resUser = await fetch("/users/me", {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  user = await resUser.json();
 
-        if (!res.ok) throw new Error("Failed to fetch user information");
-        const user = await res.json();
+  // Muestra info usuario actual (puedes dejarlo o quitarlo si vas a mostrar todos los usuarios abajo)
+  displayUserCard(user);
 
-        if (user.isAdmin) {
-          displayAllUsers(token);
-        } else {
-          displayUserCard(user);
-        }
-      } catch (err) {
-        console.error("Error:", err.message);
-        alert("Failed to load user information. Please log in again.");
-        localStorage.removeItem("token");
-        localStorage.removeItem("firstname");
-        localStorage.removeItem("email");
-        window.location.href = "/index.html";
-      }
-    });
+  // Si es admin, cargar todos los usuarios
+  if (user.isAdmin) {
+    await loadAllUsers(token);  // <--- Aquí llamas a la función
+  }
 
-    // Show all users (admin)
-    async function displayAllUsers(token) {
-      const resAll = await fetch("/users/all", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      usersCache = await resAll.json(); // Keep for edit/delete
+  // Carga flats (tuyos si no admin, todos si admin)
+  loadFlats(token, user);
+});
 
-      let userInfo = "";
-      usersCache.forEach(u => {
-        userInfo += `
-          <div class="user-card" data-user-id="${u._id}">
-            <h3>${u.firstname} ${u.lastname}</h3>
-            <p><strong>ID:</strong> ${u._id}</p>
-            <p><strong>Email:</strong> ${u.email || "Not provided"}</p>
-            <p><strong>First Name:</strong> ${u.firstname}</p>
-            <p><strong>Last Name:</strong> ${u.lastname}</p>
-            <p><strong>Birth Date:</strong> ${u.birthdate ? new Date(u.birthdate).toLocaleDateString() : "Not provided"}</p>
-            <p><strong>Is Admin:</strong> ${u.isAdmin ? "Yes" : "No"}</p>
-            <button class="edit-btn" onclick="openEditModal('${u._id}')">Edit</button>
-            <button class="delete-btn" onclick="openDeleteModal('${u._id}')">Delete</button>
-          </div>
-        `;
-      });
-      document.getElementById("userInfo").innerHTML = userInfo;
-    }
+async function loadAllUsers(token) {
+  const resAll = await fetch("/users/all", {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const users = await resAll.json();
+  displayAllUsers(users);
+}
 
-    // Show user info (user)
+function displayAllUsers(users) {
+  const container = document.getElementById("userInfo");
+  let html = '';
+  users.forEach(u => {
+    html += `
+      <div class="user-card">
+        <h3>${u.firstname} ${u.lastname}</h3>
+        <p><strong>ID:</strong> ${u._id}</p>
+        <p><strong>Email:</strong> ${u.email || "Not provided"}</p>
+        <p><strong>First Name:</strong> ${u.firstname}</p>
+        <p><strong>Last Name:</strong> ${u.lastname}</p>
+        <p><strong>Birth Date:</strong> ${u.birthdate ? new Date(u.birthdate).toLocaleDateString() : "Not provided"}</p>
+        <p><strong>Is Admin:</strong> ${u.isAdmin ? "Yes" : "No"}</p>
+        <button class="edit-btn" onclick="openEditModal('${u._id}')">Edit</button>
+        <button class="delete-btn" onclick="openDeleteModal('${u._id}')">Delete</button>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+// ---- USUARIOS: EDITAR Y ELIMINAR (ADMIN) ----
+let usersCache = [];
+let deleteUserId = null;
+
+// Sobrescribe displayAllUsers para guardar en usersCache
+function displayAllUsers(users) {
+  usersCache = users; // 👈 Necesario para modales
+  const container = document.getElementById("userInfo");
+  let html = '';
+  users.forEach(u => {
+    html += `
+      <div class="user-card">
+        <h3>${u.firstname} ${u.lastname}</h3>
+        <p><strong>ID:</strong> ${u._id}</p>
+        <p><strong>Email:</strong> ${u.email || "Not provided"}</p>
+        <p><strong>First Name:</strong> ${u.firstname}</p>
+        <p><strong>Last Name:</strong> ${u.lastname}</p>
+        <p><strong>Birth Date:</strong> ${u.birthdate ? new Date(u.birthdate).toLocaleDateString() : "Not provided"}</p>
+        <p><strong>Is Admin:</strong> ${u.isAdmin ? "Yes" : "No"}</p>
+        <button class="edit-btn" onclick="openEditModal('${u._id}')">Edit</button>
+        <button class="delete-btn" onclick="openDeleteModal('${u._id}')">Delete</button>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+// Abre modal de editar usuario
+window.openEditModal = function(userId) {
+  const user = usersCache.find(u => u._id === userId);
+  if (!user) return;
+  document.getElementById('editUserId').value = user._id;
+  document.getElementById('editEmail').value = user.email;
+  document.getElementById('editFirstname').value = user.firstname;
+  document.getElementById('editLastname').value = user.lastname;
+  document.getElementById('editBirthdate').value = user.birthdate ? new Date(user.birthdate).toISOString().split('T')[0] : '';
+  document.getElementById('editIsAdmin').value = user.isAdmin ? "true" : "false";
+  document.getElementById('editModal').style.display = 'flex';
+};
+document.getElementById('closeEditModal').onclick = () => document.getElementById('editModal').style.display = 'none';
+
+document.getElementById('editUserForm').onsubmit = async function(e) {
+  e.preventDefault();
+  const token = localStorage.getItem("token");
+  const userId = document.getElementById('editUserId').value;
+  const data = {
+    email: document.getElementById('editEmail').value,
+    firstname: document.getElementById('editFirstname').value,
+    lastname: document.getElementById('editLastname').value,
+    birthdate: document.getElementById('editBirthdate').value,
+    isAdmin: document.getElementById('editIsAdmin').value === "true"
+  };
+  const res = await fetch(`/users/${userId}`, {
+    method: 'PUT',
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(data)
+  });
+  if (res.ok) {
+    document.getElementById('editModal').style.display = 'none';
+    await loadAllUsers(token); // recarga usuarios
+    alert("User updated successfully");
+  } else {
+    alert("Failed to update user");
+  }
+};
+
+// Abre modal de borrar usuario
+window.openDeleteModal = function(userId) {
+  deleteUserId = userId;
+  document.getElementById('deleteModal').style.display = 'flex';
+};
+document.getElementById('closeDeleteModal').onclick = () => document.getElementById('deleteModal').style.display = 'none';
+document.getElementById('cancelDeleteBtn').onclick = () => document.getElementById('deleteModal').style.display = 'none';
+document.getElementById('confirmDeleteBtn').onclick = async function() {
+  const token = localStorage.getItem("token");
+  const res = await fetch(`/users/${deleteUserId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (res.ok) {
+    document.getElementById('deleteModal').style.display = 'none';
+    await loadAllUsers(token); // recarga usuarios
+    alert("User deleted successfully");
+  } else {
+    alert("Failed to delete user");
+  }
+};
+
+
+
     function displayUserCard(user) {
       const userInfo = `
         <div class="user-card">
           <h3>Your Information</h3>
-          <p><strong>ID:</strong> ${user._id}</p>
-          <p><strong>Email:</strong> ${user.email}</p>
+          <p><strong>ID:</strong> ${user._id || user.id}</p>
+          <p><strong>Email:</strong> ${user.email || ""}</p>
           <p><strong>First Name:</strong> ${user.firstname}</p>
           <p><strong>Last Name:</strong> ${user.lastname}</p>
           <p><strong>Birth Date:</strong> ${user.birthdate ? new Date(user.birthdate).toLocaleDateString() : "Not provided"}</p>
@@ -191,33 +319,80 @@
       document.getElementById("userInfo").innerHTML = userInfo;
     }
 
-    // Edit Modal logic
-    window.openEditModal = function(userId) {
-      const user = usersCache.find(u => u._id === userId);
-      if (!user) return;
-      document.getElementById('editUserId').value = user._id;
-      document.getElementById('editEmail').value = user.email;
-      document.getElementById('editFirstname').value = user.firstname;
-      document.getElementById('editLastname').value = user.lastname;
-      document.getElementById('editBirthdate').value = user.birthdate ? new Date(user.birthdate).toISOString().split('T')[0] : '';
-      document.getElementById('editIsAdmin').value = user.isAdmin ? "true" : "false";
-      document.getElementById('editModal').style.display = 'flex';
-    };
-    document.getElementById('closeEditModal').onclick = () => document.getElementById('editModal').style.display = 'none';
+    // Flats
+    async function loadFlats(token, user) {
+      const res = await fetch("/flats");
+      flatsCache = await res.json();
 
-    document.getElementById('editUserForm').onsubmit = async function(e) {
+      // Si no eres admin, solo tus flats
+      let flatsToShow = flatsCache;
+      if (!user.isAdmin) {
+        flatsToShow = flatsCache.filter(flat =>
+          (flat.owner?._id || flat.owner) == (user._id || user.id)
+        );
+      }
+      displayFlats(flatsToShow, user);
+    }
+
+    function displayFlats(flats, user) {
+      const container = document.getElementById("flatInfo");
+      let html = "";
+      flats.forEach(flat => {
+        html += `
+          <div class="user-card">
+            <h3>${flat.city}, ${flat.streetName} ${flat.streetNumber}</h3>
+            <p><strong>ID:</strong> ${flat._id}</p>
+            <p><strong>Area:</strong> ${flat.areaSize} m²</p>
+            <p><strong>AC:</strong> ${flat.hasAC ? "Yes" : "No"}</p>
+            <p><strong>Year Built:</strong> ${flat.yearBuilt}</p>
+            <p><strong>Rent Price:</strong> $${flat.rentPrice}</p>
+            <p><strong>Date Available:</strong> ${flat.dateAvailable ? new Date(flat.dateAvailable).toLocaleDateString() : "N/A"}</p>
+            <p><strong>Owner:</strong> ${flat.owner?.firstname || ""} ${flat.owner?.lastname || ""} (${flat.owner?.email || flat.owner})</p>
+            <p><strong>Created:</strong> ${new Date(flat.createdAt).toLocaleString()}</p>
+            <p><strong>Updated:</strong> ${new Date(flat.updatedAt).toLocaleString()}</p>
+            ${(flat.owner && (flat.owner._id || flat.owner) == (user._id || user.id)) ? `
+              <button class="edit-btn" onclick="openEditFlatModal('${flat._id}')">Edit</button>
+              <button class="delete-btn" onclick="openDeleteFlatModal('${flat._id}')">Delete</button>
+            ` : ""}
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    // Editar Flat - Modal
+    window.openEditFlatModal = function(flatId) {
+      const flat = flatsCache.find(f => f._id === flatId);
+      if (!flat) return;
+      document.getElementById("editFlatId").value = flat._id;
+      document.getElementById("editCity").value = flat.city;
+      document.getElementById("editStreetName").value = flat.streetName;
+      document.getElementById("editStreetNumber").value = flat.streetNumber;
+      document.getElementById("editAreaSize").value = flat.areaSize;
+      document.getElementById("editHasAC").value = flat.hasAC ? "true" : "false";
+      document.getElementById("editYearBuilt").value = flat.yearBuilt;
+      document.getElementById("editRentPrice").value = flat.rentPrice;
+      document.getElementById("editDateAvailable").value = flat.dateAvailable ? flat.dateAvailable.split("T")[0] : "";
+      document.getElementById("editFlatModal").style.display = "flex";
+    };
+    document.getElementById("closeEditFlatModal").onclick = () => document.getElementById("editFlatModal").style.display = "none";
+
+    document.getElementById("editFlatForm").addEventListener("submit", async function(e) {
       e.preventDefault();
-      const token = localStorage.getItem("token");
-      const userId = document.getElementById('editUserId').value;
+      const id = document.getElementById("editFlatId").value;
       const data = {
-        email: document.getElementById('editEmail').value,
-        firstname: document.getElementById('editFirstname').value,
-        lastname: document.getElementById('editLastname').value,
-        birthdate: document.getElementById('editBirthdate').value,
-        isAdmin: document.getElementById('editIsAdmin').value === "true"
+        city: document.getElementById("editCity").value,
+        streetName: document.getElementById("editStreetName").value,
+        streetNumber: document.getElementById("editStreetNumber").value,
+        areaSize: Number(document.getElementById("editAreaSize").value),
+        hasAC: document.getElementById("editHasAC").value === "true",
+        yearBuilt: Number(document.getElementById("editYearBuilt").value),
+        rentPrice: Number(document.getElementById("editRentPrice").value),
+        dateAvailable: document.getElementById("editDateAvailable").value
       };
-      const res = await fetch(`/users/${userId}`, {
-        method: 'PUT',
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/flats/${id}`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
@@ -225,33 +400,35 @@
         body: JSON.stringify(data)
       });
       if (res.ok) {
-        document.getElementById('editModal').style.display = 'none';
-        displayAllUsers(token);
-        alert("User updated successfully");
+        alert("Flat updated!");
+        document.getElementById("editFlatModal").style.display = "none";
+        loadFlats(token, user);
       } else {
-        alert("Failed to update user");
+        const result = await res.json();
+        alert(result.error || "Failed to update flat");
       }
-    };
+    });
 
-    // Delete Modal logic
-    window.openDeleteModal = function(userId) {
-      deleteUserId = userId;
-      document.getElementById('deleteModal').style.display = 'flex';
+    // Borrar Flat - Modal
+    window.openDeleteFlatModal = function(flatId) {
+      deleteFlatId = flatId;
+      document.getElementById('deleteFlatModal').style.display = 'flex';
     };
-    document.getElementById('closeDeleteModal').onclick = () => document.getElementById('deleteModal').style.display = 'none';
-    document.getElementById('cancelDeleteBtn').onclick = () => document.getElementById('deleteModal').style.display = 'none';
-    document.getElementById('confirmDeleteBtn').onclick = async function() {
+    document.getElementById('closeDeleteFlatModal').onclick = () => document.getElementById('deleteFlatModal').style.display = 'none';
+    document.getElementById('cancelDeleteFlatBtn').onclick = () => document.getElementById('deleteFlatModal').style.display = 'none';
+    document.getElementById('confirmDeleteFlatBtn').onclick = async function() {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/users/${deleteUserId}`, {
-        method: 'DELETE',
+      const res = await fetch(`/flats/${deleteFlatId}`, {
+        method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        document.getElementById('deleteModal').style.display = 'none';
-        displayAllUsers(token);
-        alert("User deleted successfully");
+        alert("Flat deleted!");
+        document.getElementById('deleteFlatModal').style.display = 'none';
+        loadFlats(token, user);
       } else {
-        alert("Failed to delete user");
+        const result = await res.json();
+        alert(result.error || "Failed to delete flat");
       }
     };
 
