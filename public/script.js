@@ -21,11 +21,10 @@ document.getElementById("registerForm").addEventListener("submit", async (e) => 
     firstname: formData.get("firstname"),
     lastname: formData.get("lastname"),
     birthdate: formData.get("birthdate"),
-
   };
 
   try {
-    const res = await fetch("/api/register", {
+    const res = await fetch("/users/register", {  
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -45,7 +44,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
   const data = Object.fromEntries(formData.entries());
 
   try {
-    const res = await fetch("/api/login", {
+    const res = await fetch("/users/login", {  
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -54,12 +53,14 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     const result = await res.json();
 
     if (res.ok) {
-      console.log("TOKEN:", result.token);
-      // Save token and email/firstname in Local Storage
+      // Save token and basic info in Local Storage
       localStorage.setItem("token", result.token);
       localStorage.setItem("email", result.user.email);
       localStorage.setItem("firstname", result.user.firstname);
-
+      if (result.user._id) {
+        localStorage.setItem("userId", result.user._id); // <--- GUARDAR USER ID
+      }
+      console.log(localStorage.getItem("token"));
       alert(`Welcome, ${result.user.firstname}`);
       window.location.href = "/dashboard.html";
     } else {
@@ -76,6 +77,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (isDashboard) {
     const firstname = localStorage.getItem("firstname");
     const email = localStorage.getItem("email");
+    // Si quieres mostrar el userId, también puedes obtenerlo así:
+    // const userId = localStorage.getItem("userId");
     if (firstname && email) {
       document.getElementById("welcomeMessage").textContent = `Welcome, ${firstname} (${email})`;
     } else {

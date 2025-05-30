@@ -164,11 +164,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("welcomeMessage").textContent = `Welcome, ${firstname} (${email})`;
 
-  // Obtén info usuario
-  const resUser = await fetch("/users/me", {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  user = await resUser.json();
+ // Obtén info usuario
+const userId = localStorage.getItem("userId");  // <--- Obtén el ID guardado tras login
+const resUser = await fetch(`/users/${userId}`, {
+  headers: { Authorization: `Bearer ${token}` }
+});
+user = await resUser.json();
+console.log("Usuario obtenido del backend:", user);
+
 
   // Muestra info usuario actual (puedes dejarlo o quitarlo si vas a mostrar todos los usuarios abajo)
   displayUserCard(user);
@@ -183,7 +186,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadAllUsers(token) {
-  const resAll = await fetch("/users/all", {
+  const resAll = await fetch("/users", {
     headers: { Authorization: `Bearer ${token}` }
   });
   const users = await resAll.json();
